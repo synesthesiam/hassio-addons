@@ -12,9 +12,12 @@ COPY snowboy-1.3.0.tar.gz /
 COPY nanomsg-python-master.zip /
 
 RUN pip3 install --no-cache-dir wheel
+RUN pip3 install --no-cache-dir flask
 RUN pip3 install --no-cache-dir /snowboy-1.3.0.tar.gz
 RUN pip3 install --no-cache-dir /nanomsg-python-master.zip
 
-COPY main.py /
+COPY models/ /models
+COPY *.py /
+COPY *.html /
 COPY run.sh /
 ENTRYPOINT ["/run.sh"]

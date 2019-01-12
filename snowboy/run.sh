@@ -9,6 +9,7 @@ sensitivity="$(jq --raw-output '.sensitivity' $CONFIG_PATH)"
 audio_gain="$(jq --raw-output '.audio_gain' $CONFIG_PATH)"
 
 cd "$DIR"
+FLASK_APP=app.py flask run --host=0.0.0.0 --port=12102 &
 python3 main.py \
         --pub-address "$pub_address" \
         --pull-address "$pull_address" \

@@ -12,11 +12,15 @@
         "sensitivity": 0.5,
         "trigger_level": 3
     },
+    "ports": {
+        "12103/tcp": 12103
+    },
     "schema": {
         "model": "str",
         "sensitivity": "float",
         "trigger_level": "int",
         "pub_address": "str",
         "pull_address": "str"
-    }
+    },
+    "webui": "http://[HOST]:[PORT:12103]/"
 }

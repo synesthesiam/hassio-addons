@@ -12,11 +12,15 @@
         "sensitivity": 0.5,
         "audio_gain": 1.0
     },
+    "ports": {
+        "12102/tcp": 12102
+    },
     "schema": {
         "model": "str",
         "sensitivity": "float",
         "audio_gain": "float",
         "pub_address": "str",
         "pull_address": "str"
-    }
+    },
+    "webui": "http://[HOST]:[PORT:12102]/"
 }

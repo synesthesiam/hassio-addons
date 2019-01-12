@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y python3-dev build-essential \
     jq libnanomsg-dev
 
 RUN pip3 install --no-cache-dir wheel
+RUN pip3 install --no-cache-dir flask
 COPY etc/nanomsg-python-master.zip /
 
 # Install nanomsg
@@ -29,7 +30,8 @@ COPY src/precise/scripts/listen.py /usr/lib/python3.6/site-packages/precise/scri
 
 # Copy my stuff
 COPY models /models
-COPY main.py /
+COPY *.py /
+COPY *.html /
 COPY run.sh /
 
 ENTRYPOINT ["/run.sh"]

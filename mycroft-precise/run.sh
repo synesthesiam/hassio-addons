@@ -9,6 +9,7 @@ sensitivity="$(jq --raw-output '.sensitivity' $CONFIG_PATH)"
 trigger_level="$(jq --raw-output '.trigger_level' $CONFIG_PATH)"
 
 cd "$DIR"
+FLASK_APP=app.py flask run --host=0.0.0.0 --port=12103 &
 python3 main.py \
         --pub-address "$pub_address" \
         --pull-address "$pull_address" \

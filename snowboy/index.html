@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width,initial-scale=1.0">
+
+        <title>Snowboy (Rhasspy)</title>
+    </head>
+    <body>
+        <h1>Snowboy for Rhasspy</h1>
+        <p>
+            Wake word detection for the <a href="https://github.com/synesthesiam/rhasspy-hassio-addon/">Rhasspy voice assistant</a> with <a href="https://snowboy.kitt.ai/">Snowboy</a>.
+        </p>
+
+        <hr>
+
+        <h2>Models</h2>
+        <form method="post" action="/" enctype="multipart/form-data">
+            <input type="file" name="file">
+            <input type="submit" value="Upload Model">
+        </form>
+        <br>
+
+        <form method="post" action="/" onsubmit="return confirm('Are you sure?');">
+            <input type="hidden" name="delete" value="1">
+            <table>
+                <thead>
+                    <th>Model</th>
+                    <th></th>
+                </thead>
+                <tbody>
+                    {% for model in models %}
+                    <tr>
+                        <td>{{ model }}</td>
+                        <td>
+                            <button type="submit" name="model" value="{{ model }}">Delete</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </form>
+
+        <hr>
+
+        <h2>Configuration</h2>
+        <p>
+            {{ config }}
+        </p>
+    </body>
+</html>
