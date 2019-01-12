@@ -13,12 +13,30 @@ RUN apk update && \
     apk add --no-cache bash python3 python3-dev \
         build-base portaudio-dev swig \
         sox espeak alsa-utils \
-        openjdk8-jre
+        openjdk8-jre \
+        cmake
+
+# Install nanomsg from source (no armhf alpine package currently available).
+# Also need to copy stuff in /usr to avoid a call to ldconfig, which fails
+# for some reason.
+COPY etc/nanomsg-1.1.5.tar.gz /
+RUN tar -xzf /nanomsg-1.1.5.tar.gz && \
+    cd /nanomsg-1.1.5 && \
+    mkdir build && \
+    cd build && \
+    cmake .. && \
+    cmake --build . && \
+    cmake --build . --target install && \
+    cp -R /usr/local/include/nanomsg /usr/include/ && \
+    find /usr/local -name 'libnanomsg.so*' -exec cp {} /usr/lib/ \; && \
+    rm -rf /nanomsg-1.1.5*
 
 # Install Python dependencies
 COPY requirements.txt /requirements.txt
+COPY etc/nanomsg-python-master.zip /
 RUN python3 -m pip install --no-cache-dir wheel
 RUN python3 -m pip install --no-cache-dir -r /requirements.txt
+RUN python3 -m pip install --no-cache-dir /nanomsg-python-master.zip
 
 # Install Pocketsphinx Python module with no sound
 RUN python3 -m pip install https://github.com/synesthesiam/pocketsphinx-python/releases/download/v1.0/pocketsphinx-python.tar.gz
@@ -41,8 +59,10 @@ RUN mkdir -p /usr/share/rhasspy/profiles && \
 
 # Copy my code
 COPY *.py /usr/share/rhasspy/
+COPY rhasspy/ /usr/share/rhasspy/
 COPY profiles/ /usr/share/rhasspy/profiles/
 COPY dist/ /usr/share/rhasspy/dist/
+COPY etc/wav/ /usr/share/rhasspy/etc/wav/
 
 # Copy script to run
 COPY docker/run.sh /run.sh

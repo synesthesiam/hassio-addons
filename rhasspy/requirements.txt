@@ -6,3 +6,5 @@ flask_cors
 pyyaml
 fuzzywuzzy[speedup]
 webrtcvad
+adapt-parser
+pydash

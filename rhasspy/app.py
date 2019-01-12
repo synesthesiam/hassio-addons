@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
+import logging
+logging.basicConfig(level=logging.DEBUG)
+
+logger = logging.getLogger(__name__)
+
 import os
+import sys
 import subprocess
 import uuid
-import logging
 import json
 import re
 import gzip
@@ -12,292 +17,229 @@ import wave
 import tempfile
 import threading
 import functools
+import signal
+import atexit
 from collections import defaultdict
 
 from flask import Flask, request, Response, jsonify, send_file, send_from_directory
 from flask_cors import CORS
 import requests
 
-import utils
-import wake
-from profiles import request_to_profile, Profile
-from stt import transcribe_wav, maybe_load_decoder
-from intent import best_intent
-from train import train
-from audio_recorder import PyAudioRecorder, ARecordAudioRecorder
+# import wake
+from rhasspy.core import Rhasspy
+from rhasspy.pronounce import WordPronounce
 
 # -----------------------------------------------------------------------------
-
-logging.basicConfig(level=logging.DEBUG)
+# Flask Web App Setup
+# -----------------------------------------------------------------------------
 
 app = Flask('rhasspy')
 app.secret_key = str(uuid.uuid4())
 CORS(app)
 
-# Like PATH, searched in reverse order
-profiles_dirs = [path for path in
-                 os.environ.get('RHASSPY_PROFILES', 'profiles')\
-                 .split(':') if len(path.strip()) > 0]
+# -----------------------------------------------------------------------------
+# Core Setup
+# -----------------------------------------------------------------------------
 
-profiles_dirs.reverse()
-logging.debug('Profiles dirs: %s' % profiles_dirs)
+core = None
 
-web_dir = os.environ.get('RHASSPY_WEB', 'dist')
+def start_rhasspy():
+    global core
+
+    # Like PATH, searched in reverse order
+    profiles_dirs = [path for path in
+                    os.environ.get('RHASSPY_PROFILES', 'profiles')\
+                    .split(':') if len(path.strip()) > 0]
+
+    profiles_dirs.reverse()
+
+    # Check for default profile
+    default_profile_name = os.environ.get('RHASSPY_PROFILE', None)
+
+    # Create top-level actor
+    core = Rhasspy(profiles_dirs, default_profile_name)
+
+    # Pre-load default profile
+    if core.get_default('rhasspy.preload_profile', False):
+        logger.info('Preloading default profile (%s)' % core.default_profile_name)
+        core.preload_profile(core.default_profile_name)
+
+    # Listen for wake word
+    if core.get_default('rhasspy.listen_on_start', False):
+        logger.info('Automatically listening for wake word')
+        wake = core.get_wake_listener(core.default_profile_name)
+        wake.start_listening()
+
+start_rhasspy()
 
 # -----------------------------------------------------------------------------
 
-# Cached pocketsphinx decoders
-# profile -> decoder
-decoders = {}
-wake_decoders = {}
-
-# Load default profile
-default_profile_name = os.environ.get('RHASSPY_PROFILE', None)
-
-if default_profile_name is None:
-    try:
-        for profiles_dir in profiles_dirs:
-            defaults_path = os.path.join(profiles_dir, 'defaults.json')
-            if os.path.exists(defaults_path):
-                with open(defaults_path, 'r') as defaults_file:
-                    defaults_json = json.load(defaults_file)
-                    default_profile_name = defaults_json['rhasspy']['default_profile']
-    except:
-        default_profile_name = 'en'
-
-def load_default_profile():
-    global decoders
-    default_profile = Profile(default_profile_name, profiles_dirs)
-    if default_profile.rhasspy.get('preload_profile', False):
-        try:
-            # Load speech to text decoder
-            decoder = maybe_load_decoder(default_profile)
-            decoders[default_profile.name] = decoder
-        except Exception as e:
-            logging.error('Failed to pre-load profile')
-
-    if default_profile.rhasspy.get('listen_on_start', False):
-        # Start listening for wake word
-        listen_for_wake(default_profile)
-
-load_default_profile()
+def request_to_profile(request):
+    '''Gets profile from HTTP request'''
+    profile_name = request.args.get('profile', core.default_profile_name)
+    return core.profiles[profile_name]
 
 # -----------------------------------------------------------------------------
-
-listen_for_wake_func = None
-
-@app.route('/api/listen-for-wake', methods=['POST'])
-def api_listen_for_wake():
-    profile = request_to_profile(request, profiles_dirs)
-    no_hass = request.args.get('nohass', 'false').lower() == 'true'
-    return jsonify(listen_for_wake(profile, no_hass))
-
-def listen_for_wake(profile, no_hass=False):
-    global listen_for_wake_func
-    system = profile.wake.get('system', None)
-    device_index = int(request.args.get('device', -1))
-    if device_index < 0:
-        device_index = None  # default device
-
-    if system == 'pocketsphinx':
-        global decoders
-        listen_for_wake_func = wake.pocketsphinx_wake(
-            profile, wake_decoders, functools.partial(wake_word_detected, profile, no_hass),
-            device_index=device_index)
-
-        # Start listening
-        listen_for_wake_func()
-
-        return profile.wake
-    else:
-        assert False, 'Unknown wake word system: %s' % system
-
-def wake_word_detected(profile, no_hass):
-    global listen_for_wake_func
-
-    try:
-        # Listen until silence
-        from command_listener import CommandListener
-        listener = CommandListener()
-        recorded_data = listener.listen()
-
-        # Convert to WAV
-        with io.BytesIO() as wav_data:
-            with wave.open(wav_data, mode='wb') as wav_file:
-                wav_file.setframerate(listener.sample_rate)
-                wav_file.setsampwidth(listener.sample_width)
-                wav_file.setnchannels(listener.channels)
-                wav_file.writeframesraw(recorded_data)
-
-            wav_data.seek(0)
-
-            # Get intent/send to Home Assistant
-            intent = speech_to_intent(profile, wav_data.read(), no_hass)
-    except:
-        logging.exception('Error processing command')
-
-    # Start listening again
-    listen_for_wake_func()
-
+# HTTP API
 # -----------------------------------------------------------------------------
 
 @app.route('/api/profiles')
 def api_profiles():
-    # ['en', 'fr', ...]
-    profile_names = set()
-    for profiles_dir in profiles_dirs:
-        if not os.path.exists(profiles_dir):
-            continue
-
-        for path in os.listdir(profiles_dir):
-            if os.path.isdir(os.path.join(profiles_dir, path)):
-                profile_names.add(path)
-
+    '''Get list of available profiles'''
     return jsonify({
-        'default_profile': default_profile_name,
-        'profiles': sorted(profile_names)
+        'default_profile': core.default_profile_name,
+        'profiles': sorted(core.profiles.keys())
     })
+
+# -----------------------------------------------------------------------------
+
+@app.route('/api/microphones', methods=['GET'])
+def api_microphones():
+    '''Get a dictionary of available recording devices'''
+    mics = core.get_audio_recorder().get_microphones()
+    return jsonify(mics)
+
+# -----------------------------------------------------------------------------
+
+@app.route('/api/listen-for-wake', methods=['POST'])
+def api_listen_for_wake():
+    profile = request_to_profile(request)
+    no_hass = request.args.get('nohass', 'false').lower() == 'true'
+
+    wake = core.get_wake_listener(profile.name)
+    wake.start_listening(no_hass=no_hass)
+
+    return profile.name
+
+# -----------------------------------------------------------------------------
+
+@app.route('/api/listen-for-command', methods=['POST'])
+def api_listen_for_command():
+    profile = request_to_profile(request)
+    no_hass = request.args.get('nohass', 'false').lower() == 'true'
+
+    audio_player = core.get_audio_player()
+    audio_player.play_file(profile.get('sounds.wake', ''))
+
+    command_listener = core.get_command_listener()
+    wav_data = command_listener.listen_for_command()
+    audio_player.play_file(profile.get('sounds.recorded', ''))
+
+    intent = core.wav_to_intent(wav_data, profile.name)
+
+    if not no_hass:
+        # Send intent to Home Assistant
+        intent = core.get_intent_handler(profile.name).handle_intent(intent)
+
+    return jsonify(intent)
 
 # -----------------------------------------------------------------------------
 
 @app.route('/api/profile', methods=['GET', 'POST'])
 def api_profile():
+    '''Read or write profile JSON directly'''
     layers = request.args.get('layers', 'all')
 
     if request.method == 'POST':
+        # Ensure that JSON is valid
+        json.loads(request.data)
+
         if layers == 'default':
-            for profiles_dir in profiles_dirs:
+            # Write default settings
+            for profiles_dir in core.profiles_dirs:
                 profile_path = os.path.join(profiles_dir, 'defaults.json')
                 if os.path.exists(profile_path):
                     with open(profile_path, 'wb') as profile_file:
                         profile_file.write(request.data)
         else:
-            profile = request_to_profile(request, profiles_dirs)
+            # Write local profile settings
+            profile = request_to_profile(request)
             profile_path = profile.write_path('profile.json')
             with open(profile_path, 'wb') as profile_file:
                 profile_file.write(request.data)
 
         return 'Wrote %d byte(s) to %s' % (len(request.data), profile_path)
 
-    profile = request_to_profile(request, profiles_dirs, layers)
-
-    return jsonify(profile.json)
+    if layers == 'default':
+        # Read default settings
+        return jsonify(core.defaults_json)
+    elif layers == 'profile':
+        # Local settings only
+        profile = request_to_profile(request)
+        profile_path = profile.read_path('profile.json')
+        return send_file(open(profile_path, 'rb'),
+                         mimetype='application/json')
+    else:
+        profile = request_to_profile(request)
+        return jsonify(profile.json)
 
 # -----------------------------------------------------------------------------
 
 @app.route('/api/lookup', methods=['POST'])
 def api_lookup():
+    '''Get CMU phonemes from dictionary or guessed pronunciation(s)'''
     n = int(request.args.get('n', 5))
     assert n > 0, 'No pronunciations requested'
 
-    voice = request.args.get('voice', None)
-
-    profile = request_to_profile(request, profiles_dirs)
-    ps_config = profile.speech_to_text['pocketsphinx']
-    espeak_config = profile.text_to_speech['espeak']
-
     word = request.data.decode('utf-8').strip().lower()
     assert len(word) > 0, 'No word to look up'
-    logging.debug('Getting pronunciations for %s' % word)
 
-    # Load base and custom dictionaries
-    base_dictionary_path = profile.read_path(ps_config['base_dictionary'])
-    custom_path = profile.read_path(ps_config['custom_words'])
+    voice = request.args.get('voice', None)
+    profile = request_to_profile(request)
 
-    word_dict = {}
-    for word_dict_path in [base_dictionary_path, custom_path]:
-        if os.path.exists(word_dict_path):
-            with open(word_dict_path, 'r') as dictionary_file:
-                utils.read_dict(dictionary_file, word_dict)
+    word_pron = core.get_word_pronouncer(profile.name)
+    in_dictionary, pronunciations, espeak_str = word_pron.pronounce(word)
 
-    result = utils.lookup_word(word, word_dict, profile, n=n)
-
-    # Get phonemes from eSpeak
-    espeak_command = ['espeak', '-q', '-x']
-
-    if voice is None:
-        if 'voice' in espeak_config:
-            # Use profile voice
-            voice = espeak_config['voice']
-        elif 'language' in profile.json:
-            # Use language default voice
-            voice = profile.json['language']
-
-    espeak_command.extend(['-v', voice, word])
-    logging.debug(espeak_command)
-    result['espeak_phonemes'] = subprocess.check_output(espeak_command).decode()
-
-    return jsonify(result)
+    return jsonify({
+        'in_dictionary': in_dictionary,
+        'pronunciations': pronunciations,
+        'espeak_phonemes': espeak_str
+    })
 
 # -----------------------------------------------------------------------------
 
 @app.route('/api/pronounce', methods=['POST'])
 def api_pronounce():
-    profile = request_to_profile(request, profiles_dirs)
-    espeak_config = profile.text_to_speech['espeak']
-
+    '''Pronounce CMU phonemes or word using eSpeak'''
+    profile = request_to_profile(request)
     download = request.args.get('download', 'false').lower() == 'true'
-    speed = int(request.args.get('speed', 80))
     voice = request.args.get('voice', None)
 
     pronounce_str = request.data.decode('utf-8').strip()
     assert len(pronounce_str) > 0, 'No string to pronounce'
 
+    word_pron = core.get_word_pronouncer(profile.name)
+
+    # phonemes or word
     pronounce_type = request.args.get('type', 'phonemes')
 
     if pronounce_type == 'phonemes':
-        # Load map from Sphinx to eSpeak phonemes
-        map_path = profile.read_path(espeak_config['phoneme_map'])
-        phoneme_map = utils.load_phoneme_map(map_path)
-
         # Convert from Sphinx to espeak phonemes
-        espeak_str = "[['%s]]" % ''.join(phoneme_map.get(p, p)
-                                         for p in pronounce_str.split())
+        espeak_str = word_pron.translate_phonemes(pronounce_str)
     else:
         # Speak word directly
         espeak_str = pronounce_str
 
-    # Generate WAV data
-    espeak_command = ['espeak', '-s', str(speed)]
+    espeak_phonemes, wav_data = word_pron.speak(espeak_str, voice)
 
-    if voice is None:
-        if 'voice' in espeak_config:
-            # Use profile voice
-            voice = espeak_config['voice']
-        elif 'language' in profile.json:
-            # Use language default voice
-            voice = profile.json['language']
-
-    if voice is not None:
-        espeak_command.extend(['-v', str(voice)])
-
-    espeak_command.append(espeak_str)
-
-    with tempfile.NamedTemporaryFile(suffix='.wav', mode='wb+') as wav_file:
-        espeak_command.extend(['-w', wav_file.name])
-        logging.debug(espeak_command)
-
-        # Generate WAV data
-        subprocess.check_call(espeak_command)
-        wav_file.seek(0)
-
-        if download:
-            return Response(wav_file.read(), mimetype='audio/wav')
-        else:
-            subprocess.check_call(['aplay', '-t', 'wav', wav_file.name])
-            return espeak_str
+    if download:
+        return Response(wav_data, mimetype='audio/wav')
+    else:
+        core.get_audio_player().play_wav(wav_data)
+        return espeak_phonemes
 
 # -----------------------------------------------------------------------------
 
 @app.route('/api/phonemes')
 def api_phonemes():
-    profile = request_to_profile(request, profiles_dirs)
-    tts_config = profile.text_to_speech
-    examples_path = profile.read_path(tts_config['phoneme_examples'])
+    '''Get phonemes and example words for a profile'''
+    profile = request_to_profile(request)
+    examples_path = profile.read_path(
+        profile.get('text_to_speech.phoneme_examples'))
 
     # phoneme -> { word, phonemes }
-    logging.debug('Loading phoneme examples from %s' % examples_path)
-    examples_dict = utils.load_phoneme_examples(examples_path)
+    logger.debug('Loading phoneme examples from %s' % examples_path)
+    examples_dict = WordPronounce.load_phoneme_examples(examples_path)
 
     return jsonify(examples_dict)
 
@@ -305,18 +247,22 @@ def api_phonemes():
 
 @app.route('/api/sentences', methods=['GET', 'POST'])
 def api_sentences():
-    profile = request_to_profile(request, profiles_dirs)
-    stt_config = profile.speech_to_text
+    '''Read or write sentences for a profile'''
+    profile = request_to_profile(request)
 
     if request.method == 'POST':
         # Update sentences
-        sentences_path = profile.write_path(stt_config['sentences_ini'])
+        sentences_path = profile.write_path(
+            profile.get('speech_to_text.sentences_ini'))
+
         with open(sentences_path, 'wb') as sentences_file:
             sentences_file.write(request.data)
             return 'Wrote %s byte(s) to %s' % (len(request.data), sentences_path)
 
     # Return sentences
-    sentences_path = profile.read_path(stt_config['sentences_ini'])
+    sentences_path = profile.read_path(
+        profile.get('speech_to_text.sentences_ini'))
+
     if not os.path.exists(sentences_path):
         return ''  # no sentences yet
 
@@ -328,10 +274,10 @@ def api_sentences():
 
 @app.route('/api/custom-words', methods=['GET', 'POST'])
 def api_custom_words():
-    profile = request_to_profile(request, profiles_dirs)
-    stt_config = profile.speech_to_text
-    ps_config = stt_config['pocketsphinx']
-    custom_words_path = profile.write_path(ps_config['custom_words'])
+    '''Read or write custom word dictionary for a profile'''
+    profile = request_to_profile(request)
+    custom_words_path = profile.write_path(
+        profile.get('speech_to_text.pocketsphinx.custom_words'))
 
     if request.method == 'POST':
         # Update custom words
@@ -351,14 +297,14 @@ def api_custom_words():
 
 @app.route('/api/train', methods=['POST'])
 def api_train():
-    profile = request_to_profile(request, profiles_dirs)
+    profile = request_to_profile(request)
 
     start_time = time.time()
-    logging.info('Starting training')
-    train(profile)
+    logger.info('Starting training')
+    core.train_profile(profile.name)
     end_time = time.time()
 
-    reload(profile)
+    core.reload_profile(profile.name)
 
     return 'Training completed in %0.2f second(s)' % (end_time - start_time)
 
@@ -366,136 +312,61 @@ def api_train():
 
 @app.route('/api/reload', methods=['POST'])
 def api_reload():
-    profile = request_to_profile(request, profiles_dirs)
-    reload(profile)
+    profile = request_to_profile(request)
+    core.reload_profile(profile.name)
 
     return 'Reloaded profile "%s"' % profile.name
 
-def reload(profile):
-    # Reset speech recognizer
-    global decoders
-    decoders.pop(profile.name, None)
+# -----------------------------------------------------------------------------
 
-    global wake_decoders
-    wake_decoders.pop(profile.name, None)
+@app.route('/api/restart', methods=['POST'])
+def api_restart():
+    logger.debug('Restarting Rhasspy')
 
-    # Reset intent recognizer
-    global intent_projects, intent_examples
-    intent_projects.pop(profile.name, None)
-    intent_examples.pop(profile.name, None)
+    global core
+    core.get_audio_recorder().stop_all()
+    core.get_wake_listener().stop_listening()
+    del core
 
-    # Reload default profile if necessary
-    if profile.name == default_profile_name:
-        load_default_profile()
+    start_rhasspy()
+    logger.info('Restarted Rhasspy')
+
+    return 'Restarted Rhasspy'
 
 # -----------------------------------------------------------------------------
 
 # Get text from a WAV file
 @app.route('/api/speech-to-text', methods=['POST'])
 def api_speech_to_text():
-    global decoders
+    profile = request_to_profile(request)
 
-    profile = request_to_profile(request, profiles_dirs)
-
+    # Prefer 16-bit 16Khz mono, but will convert with sox if needed
     wav_data = request.data
-    decoder = transcribe_wav(profile, wav_data, decoders.get(profile.name))
-    decoders[profile.name] = decoder
+    decoder = core.get_speech_decoder(profile.name)
 
-    if decoder.hyp() is not None:
-        return decoder.hyp().hypstr
-
-    return ''
-
-# -----------------------------------------------------------------------------
-
-# Cached rasaNLU projects
-# profile -> project
-intent_projects = {}
-
-# Cached fuzzywuzzy examples
-# profile -> examples
-intent_examples = {}
-
-def get_intent(profile, text):
-    system = profile.intent.get('system', 'fuzzywuzzy')
-
-    if system == 'rasa':
-        rasa_config = profile.intent[system]
-
-        # Use rasaNLU
-        global intent_projects
-
-        project = intent_projects.get(profile.name, None)
-        if project is None:
-            import rasa_nlu
-            from rasa_nlu.project import Project
-            project_dir = profile.read_path(rasa_config['project_dir'])
-            project_name = rasa_config['project_name']
-
-            project = Project(project=project_name,
-                              project_dir=project_dir)
-
-            intent_projects[profile.name] = project
-
-        return project.parse(text)
-    elif system == 'remote':
-        remote_url = profile.intent[system]['url']
-        headers = { 'Content-Type': 'text/plain' }
-
-        # Pass profile name through
-        params = { 'profile': profile.name, 'nohass': True }
-        response = requests.post(remote_url, headers=headers,
-                                 data=text, params=params)
-
-        response.raise_for_status()
-
-        # Return intent directly
-        return response.json()
-    else:
-        fuzzy_config = profile.intent[system]
-
-        # Use fuzzywuzzy
-        global intent_examples
-
-        if not profile.name in intent_examples:
-            examples_path = profile.read_path(fuzzy_config['examples_json'])
-            with open(examples_path, 'r') as examples_file:
-                intent_examples[profile.name] = json.load(examples_file)
-
-        text, intent_name, slots = best_intent(intent_examples[profile.name], text)
-
-        # Try to match RasaNLU format for future compatibility
-        intent = {
-            'text': text,
-            'intent': {
-                'name': intent_name,
-            },
-            'entities': [
-                { 'entity': name, 'value': values[0] } for name, values in slots.items()
-            ]
-        }
-
-        return intent
+    return decoder.transcribe_wav(wav_data)
 
 # -----------------------------------------------------------------------------
 
 # Get intent from text
 @app.route('/api/text-to-intent', methods=['POST'])
 def api_text_to_intent():
-    profile = request_to_profile(request, profiles_dirs)
-
+    profile = request_to_profile(request)
     text = request.data.decode()
     no_hass = request.args.get('nohass', 'false').lower() == 'true'
 
+    recognizer = core.get_intent_recognizer(profile.name)
+
+    # Convert text to intent
     start_time = time.time()
-    intent = get_intent(profile, text)
+    intent = recognizer.recognize(text)
 
     intent_sec = time.time() - start_time
     intent['time_sec'] = intent_sec
 
     if not no_hass:
         # Send intent to Home Assistant
-        utils.send_intent(profile.home_assistant, intent)
+        intent = core.get_intent_handler(profile.name).handle_intent(intent)
 
     return jsonify(intent)
 
@@ -504,132 +375,70 @@ def api_text_to_intent():
 # Get intent from a WAV file
 @app.route('/api/speech-to-intent', methods=['POST'])
 def api_speech_to_intent():
-    profile = request_to_profile(request, profiles_dirs)
-    wav_data = request.data
+    profile = request_to_profile(request)
     no_hass = request.args.get('nohass', 'false').lower() == 'true'
 
-    start_time = time.time()
-    intent = speech_to_intent(profile, wav_data, no_hass)
+    # Prefer 16-bit 16Khz mono, but will convert with sox if needed
+    wav_data = request.data
+    intent = core.wav_to_intent(wav_data, profile.name)
 
-    intent_sec = time.time() - start_time
-    intent['time_sec'] = intent_sec
+    if not no_hass:
+        # Send intent to Home Assistant
+        intent = core.get_intent_handler(profile.name).handle_intent(intent)
 
-    if intent is not None:
-        return jsonify(intent)
-
-    return jsonify({
-        'text': '',
-        'intent': '',
-        'entities': [],
-        'time_sec': intent_sec
-    })
-
-def speech_to_intent(profile, wav_data, no_hass=False):
-    global decoders
-
-    # speech to text
-    decoder = transcribe_wav(profile, wav_data, decoders.get(profile.name))
-    decoders[profile.name] = decoder
-
-    # text to intent
-    if decoder.hyp() is not None:
-        text = decoder.hyp().hypstr
-        intent = get_intent(profile, text)
-        logging.debug(intent)
-
-        if not no_hass:
-            # Send intent to Home Assistant
-            utils.send_intent(profile.home_assistant, intent)
-
-        return intent
-
-    return None
+    return jsonify(intent)
 
 # -----------------------------------------------------------------------------
-
-recorder = None
 
 # Start recording a WAV file to a temporary buffer
 @app.route('/api/start-recording', methods=['POST'])
 def api_start_recording():
-    global recorder
-    device_index = int(request.args.get('device', -1))
-    if device_index < 0:
-        device_index = None  # default device
+    device = request.args.get('device', '')
+    if len(device) == 0:
+        device = None  # default device
 
-    profile = request_to_profile(request, profiles_dirs)
-    recorder = get_audio_recorder(profile)
-    recorder.start_recording(device_index)
+    profile = request_to_profile(request)
+    recorder = core.get_audio_recorder()
+    recorder.start_recording(True, False, device)
 
-    return 'OK'
+    return profile.name
 
 # Stop recording WAV file, transcribe, and get intent
 @app.route('/api/stop-recording', methods=['POST'])
 def api_stop_recording():
-    global decoders, recorder
     no_hass = request.args.get('nohass', 'false').lower() == 'true'
+    recorder = core.get_audio_recorder()
 
-    if recorder is not None:
-        record_buffer = recorder.stop_recording()
-        logging.debug('Stopped recording (got %s byte(s))' % len(record_buffer))
+    if recorder.is_recording:
+        wav_data = recorder.stop_recording(True, False)
+        logger.debug('Recorded %s byte(s) of audio data' % len(wav_data))
 
-        profile = request_to_profile(request, profiles_dirs)
+        profile = request_to_profile(request)
+        intent = core.wav_to_intent(wav_data, profile.name)
 
-        # Convert to WAV
-        with io.BytesIO() as wav_data:
-            with wave.open(wav_data, mode='wb') as wav_file:
-                wav_file.setframerate(16000)
-                wav_file.setsampwidth(2)
-                wav_file.setnchannels(1)
-                wav_file.writeframesraw(record_buffer)
+        if not no_hass:
+            # Send intent to Home Assistant
+            intent = core.get_intent_handler(profile.name).handle_intent(intent)
 
-            wav_data.seek(0)
-            record_buffer = None
+        return jsonify(intent)
 
-            # speech to text
-            decoder = transcribe_wav(profile, wav_data.read(), decoders.get(profile.name))
-            decoders[profile.name] = decoder
-
-            # text to intent
-            if decoder.hyp() is not None:
-                text = decoder.hyp().hypstr
-                logging.info(text)
-                intent = get_intent(profile, text)
-
-                if not no_hass:
-                    # Send intent to Home Assistant
-                    utils.send_intent(profile.home_assistant, intent)
-
-                return jsonify(intent)
-
+    # Empty intent
     return jsonify({
         'text': '',
-        'intent': '',
+        'intent': { 'name': '' },
         'entities': []
     })
-
-@app.route('/api/microphones', methods=['GET'])
-def api_microphones():
-    profile = request_to_profile(request, profiles_dirs)
-    mics = get_audio_recorder(profile).get_microphones()
-    return jsonify(mics)
-
-def get_audio_recorder(profile):
-    system = profile.microphone.get('system', 'pyaudio')
-    if system == 'arecord':
-        return ARecordAudioRecorder()
-
-    return PyAudioRecorder()
 
 # -----------------------------------------------------------------------------
 
 @app.route('/api/unknown_words', methods=['GET'])
 def api_unknown_words():
-    profile = request_to_profile(request, profiles_dirs)
-    ps_config = profile.speech_to_text['pocketsphinx']
+    profile = request_to_profile(request)
 
     unknown_words = {}
-    unknown_path = profile.read_path(ps_config['unknown_words'])
+    unknown_path = profile.read_path(
+        profile.get('speech_to_text.pocketsphinx.unknown_words'))
+
     if os.path.exists(unknown_path):
         for line in open(unknown_path, 'r'):
             line = line.strip()
@@ -643,12 +452,14 @@ def api_unknown_words():
 
 @app.errorhandler(Exception)
 def handle_error(err):
-    logging.exception(err)
+    logger.exception(err)
     return (str(err), 500)
 
 # ---------------------------------------------------------------------
 # Static Routes
 # ---------------------------------------------------------------------
+
+web_dir = os.path.join(os.path.dirname(__file__), 'dist')
 
 @app.route('/css/<path:filename>', methods=['GET'])
 def css(filename):
