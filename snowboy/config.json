@@ -6,8 +6,13 @@
     "startup": "application",
     "boot": "auto",
     "options": {
-        "pub_address": "tcp://75f2ff60-rhasspy:5000",
-        "pull_address": "tcp://75f2ff60-rhasspy:5001",
+        "host": "localhost",
+        "port": 1883,
+        "username": "",
+        "password": "",
+        "reconnect": 5,
+        "site_id": "default",
+        "wakeword_id": "default",
         "model": "snowboy",
         "sensitivity": 0.5,
         "audio_gain": 1.0
@@ -20,7 +25,13 @@
         "sensitivity": "float",
         "audio_gain": "float",
         "pub_address": "str",
-        "pull_address": "str"
+        "host": "str",
+        "port": "int",
+        "username": "str",
+        "password": "str",
+        "site_id": "str",
+        "wakeword_id": "str",
+        "reconnect": "float"
     },
     "webui": "http://[HOST]:[PORT:12102]/"
 }

@@ -1,16 +1,21 @@
 {
     "name": "Mycroft Precise Wake System for Rhasspy",
     "slug": "precise-rhasspy",
-    "version": "0.2.0-1",
+    "version": "0.2.0-2",
     "description": "Mycroft Precise wake word detection (Mycroft.ai) for Rhasspy voice assistant",
     "startup": "application",
     "boot": "auto",
     "options": {
-        "pub_address": "tcp://75f2ff60-rhasspy:5000",
-        "pull_address": "tcp://75f2ff60-rhasspy:5001",
+        "host": "localhost",
+        "port": 1883,
+        "username": "",
+        "password": "",
+        "reconnect": 5,
+        "site_id": "default",
+        "wakeword_id": "default",
         "model": "/models/okay-rhasspy.pb",
         "sensitivity": 0.5,
-        "trigger_level": 3
+        "trigger_level": 3,
     },
     "ports": {
         "12103/tcp": 12103
@@ -19,8 +24,13 @@
         "model": "str",
         "sensitivity": "float",
         "trigger_level": "int",
-        "pub_address": "str",
-        "pull_address": "str"
+        "host": "str",
+        "port": "int",
+        "username": "str",
+        "password": "str",
+        "reconnect": "float",
+        "site_id": "str",
+        "wakeword_id": "str"
     },
     "webui": "http://[HOST]:[PORT:12103]/"
 }

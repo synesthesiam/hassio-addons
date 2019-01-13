@@ -1,18 +1,19 @@
-FROM python:3.6
+FROM resin/rpi-raspbian:stretch
+LABEL maintainer="Michael Hansen <hansen.mike@gmail.com>"
 
 # Install system packages
-RUN apt-get update && apt-get install -y python3-dev build-essential \
+RUN apt-get update && apt-get install -y python3 \
+    python3-dev build-essential \
+    python3-setuptools \
     python3-scipy python3-numpy \
     libhdf5-dev \
-    portaudio19-dev alsa-utils \
-    jq libnanomsg-dev
+    portaudio19-dev \
+    alsa-utils \
+    jq
 
 RUN pip3 install --no-cache-dir wheel
 RUN pip3 install --no-cache-dir flask
-COPY etc/nanomsg-python-master.zip /
-
-# Install nanomsg
-RUN pip3 install --no-cache-dir /nanomsg-python-master.zip
+RUN pip3 install --no-cache-dir paho-mqtt
 
 # Install tensorflow
 RUN pip3 install --no-cache-dir tensorflow==1.8.0
@@ -20,9 +21,6 @@ RUN pip3 install --no-cache-dir tensorflow==1.8.0
 # Install Mycroft Precise
 RUN pip3 install --no-cache-dir pkgconfig cython
 RUN pip3 install --no-cache-dir mycroft-precise==0.2.0
-
-# Add random sounds for training
-#COPY etc/pbsounds /pbsounds
 
 # Patch precise runner to use acrecord instead of PyAudio
 COPY src/precise_runner/runner.py /usr/lib/python3.6/site-packages/precise_runner/

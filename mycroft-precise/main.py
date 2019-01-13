@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 import os
+import io
+import json
+import wave
 import argparse
 import subprocess
 import threading
@@ -7,21 +10,36 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 
 from precise_runner import PreciseEngine, PreciseRunner
-from nanomsg import Socket, SUB, SUB_SUBSCRIBE, PUSH
+import paho.mqtt.client as mqtt
 
 def main():
     # Parse arguments
     parser = argparse.ArgumentParser(description='mycroft-precise')
-    parser.add_argument('--pub-address',
-                        help='nanomsg address of PUB socket (default=tcp://127.0.0.1:5000)',
-                        type=str, default='tcp://127.0.0.1:5000')
+    parser.add_argument('--host',
+                        help='MQTT host (default=localhost)',
+                        type=str, default='localhost')
 
-    parser.add_argument('--pull-address',
-                        help='nanomsg address of PULL socket (default=tcp://127.0.0.1:5001)',
-                        type=str, default='tcp://127.0.0.1:5001')
+    parser.add_argument('--port',
+                        help='MQTT port (default=1883)',
+                        type=int, default=1883)
 
-    parser.add_argument('--payload', help='Payload string to send when wake word is detected (default=OK)',
-                        type=str, default='OK')
+    parser.add_argument('--username',
+                        help='MQTT username (default=)',
+                        type=str, default='')
+
+    parser.add_argument('--password',
+                        help='MQTT password (default=)',
+                        type=str, default='')
+
+    parser.add_argument('--reconnect',
+                        help='Seconds before MQTT reconnect (default=5, disabled=0)',
+                        type=float, default=5)
+
+    parser.add_argument('--site-id', help='Hermes siteId (default=default)',
+                        type=str, default='default')
+
+    parser.add_argument('--wakeword-id', help='Hermes wakewordId (default=default)',
+                        type=str, default='default')
 
     parser.add_argument('--model',
                         type=str,
@@ -39,65 +57,121 @@ def main():
     parser.add_argument('--feedback', help='Show printed feedback', action='store_true')
     args = parser.parse_args()
 
+    topic_audio_frame = 'hermes/audioServer/%s/audioFrame' % args.site_id
+    topic_hotword_detected = 'hermes/hotword/%s/detected' % args.wakeword_id
+
     # Create runner
-    engine = PreciseEngine('precise-engine', args.model)
+    engine = PreciseEngine('precise-engine', args.model, chunk_size=4096)
     stream = ByteStream()
 
-    with Socket(PUSH) as push_socket:
-        # Response is sent via nanomsg
-        push_socket.connect(args.pull_address)
-        logging.info('Connected to PULL socket at %s' % args.pull_address)
+    client = mqtt.Client()
 
-        first_frame = False
+    # Login
+    if len(args.username) > 0:
+        logging.debug('Logging in as %s' % args.username)
+        client.username_pw_set(args.username, args.password)
 
-        def on_activation():
-            nonlocal first_frame
+    first_frame = True
 
-            # Hotword detected
-            if args.feedback:
-                print('!', end='', flush=True)
+    def on_activation():
+        nonlocal first_frame
+        if args.feedback:
+            print('!', end='', flush=True)
 
-            push_socket.send(payload)  # response
-            logging.info('Wake word detected!')
-            first_frame = False
+        logging.debug('Hotword detected!')
+        payload = json.dumps({
+            'siteId': args.site_id,
+            'modelId': args.model,
+            'modelVersion': '',
+            'modelType': 'personal',
+            'currentSensitivity': args.sensitivity
+        }).encode()
 
-        runner = PreciseRunner(engine, stream=stream,
-                               sensitivity=args.sensitivity,
-                               trigger_level=args.trigger_level,
-                               on_activation=on_activation)
+        client.publish(topic_hotword_detected, payload)
+        first_frame = True
 
-        runner.start()
+    runner = PreciseRunner(engine, stream=stream,
+                           sensitivity=args.sensitivity,
+                           trigger_level=args.trigger_level,
+                           on_activation=on_activation)
 
-        # Do detection
+    # Set up MQTT
+    def on_connect(client, userdata, flags, rc):
+        client.subscribe(topic_audio_frame)
+        client.subscribe('hermes/hotword/toggleOn')
+        client.subscribe('hermes/hotword/toggleOff')
+        logging.debug('Connected to %s:%s' % (args.host, args.port))
+
+    listening = True
+    def on_message(client, userdata, message):
+        nonlocal first_frame, listening
         try:
-            payload = args.payload.encode()
+            if message.topic == topic_audio_frame:
+                if not listening:
+                    return
 
-            # Receive raw audio data via nanomsg
-            with Socket(SUB) as sub_socket:
-                sub_socket.connect(args.pub_address)
-                sub_socket.set_string_option(SUB, SUB_SUBSCRIBE, '')
-                logging.info('Connected to PUB socket at %s' % args.pub_address)
+                if first_frame:
+                    logging.debug('Receiving audio data')
+                    first_frame = False
 
-                while True:
-                    data = sub_socket.recv()  # audio data
-                    if args.feedback:
-                        print('.', end='', flush=True)
+                if args.feedback:
+                    print('.', end='', flush=True)
 
-                    if not first_frame:
-                        logging.debug('Receiving audio data from Rhasspy')
-                        first_frame = True
+                # Extract audio data
+                with io.BytesIO(message.payload) as wav_buffer:
+                    with wave.open(wav_buffer, mode='rb') as wav_file:
+                        audio_data = wav_file.readframes(wav_file.getnframes())
+                        stream.write(audio_data)
 
-                    # Write to in-memory stream
-                    stream.write(data)
+            elif message.topic == 'hermes/hotword/toggleOn':
+                listening = True
+                logging.debug('On')
+            elif message.topic == 'hermes/hotword/toggleOff':
+                listening = False
+                logging.debug('Off')
+        except Exception as e:
+            logging.exception('on_message')
 
-        except KeyboardInterrupt:
-            pass
+    client.on_connect = on_connect
+    client.on_message = on_message
 
+    def on_disconnect(client, userdata, rc):
+        logging.warn('Disconnected')
+
+        if args.reconnect > 0:
+            time.sleep(args.reconnect)
+            logging.debug('Reconnecting')
+            client.connect(args.host, args.port)
+
+    client.on_disconnect = on_disconnect
+
+    connected = False
+    while not connected:
         try:
-            stream.close()
-            runner.stop()
-        except:
-            pass
+            client.connect(args.host, args.port)
+            connected = True
+        except Exception as e:
+            logging.exception('connect')
+
+            if args.reconnect > 0:
+                time.sleep(args.reconnect)
+                logging.debug('Reconnecting')
+            else:
+                return
+
+    runner.start()
+
+    try:
+        logging.info('Listening')
+        client.loop_forever()
+    except KeyboardInterrupt:
+        pass
+
+    try:
+        stream.close()
+        runner.stop()
+    except:
+        pass
 
 # -----------------------------------------------------------------------------
 
@@ -113,6 +187,7 @@ class ByteStream:
             if not self.closed:
                 self.event.wait()
             else:
+                # Pad with zeros
                 self.buffer += bytearray(n - len(self.buffer))
 
         chunk = self.buffer[:n]
@@ -124,7 +199,8 @@ class ByteStream:
             return
 
         self.buffer += data
-        self.event.set()
+        if not self.event.is_set():
+            self.event.set()
 
     def close(self):
         self.closed = True
