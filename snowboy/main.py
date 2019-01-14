@@ -109,7 +109,7 @@ def main():
         client.subscribe('hermes/hotword/toggleOff')
         logging.debug('Connected to %s:%s' % (args.host, args.port))
 
-    first_frame = False
+    first_frame = True
     listening = True
     def on_message(client, userdata, message):
         nonlocal first_frame, listening

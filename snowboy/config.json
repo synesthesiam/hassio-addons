@@ -21,17 +21,16 @@
         "12102/tcp": 12102
     },
     "schema": {
-        "model": "str",
-        "sensitivity": "float",
-        "audio_gain": "float",
-        "pub_address": "str",
         "host": "str",
         "port": "int",
         "username": "str",
         "password": "str",
+        "reconnect": "float",
         "site_id": "str",
         "wakeword_id": "str",
-        "reconnect": "float"
+        "model": "str",
+        "sensitivity": "float",
+        "audio_gain": "float"
     },
     "webui": "http://[HOST]:[PORT:12102]/"
 }

@@ -2,7 +2,7 @@ Snowboy Wake Listener
 =========================
 
 Small service that listens for a wake word with [snowboy](https://snowboy.kitt.ai).
-Audio data is streamed in from [Rhasspy](https://github.com/synesthesiam/rhasspy-hassio-addon) via [nanomsg](https://nanomsg.org).
+Audio data is streamed in from [Rhasspy](https://github.com/synesthesiam/rhasspy-hassio-addon) via [MQTT](http://mqtt.org/).
 
 
 Building
