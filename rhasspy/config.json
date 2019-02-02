@@ -1,10 +1,16 @@
 {
     "name": "Rhasspy Assistant",
     "slug": "rhasspy",
-    "version": "1.26",
+    "version": "1.27",
     "description": "Offline voice assistant for Home Assistant",
     "startup": "application",
+    "arch": [
+        "aarch64",
+        "amd64",
+        "armhf"
+    ],
     "boot": "auto",
+    "map": ["config:rw"],
     "options": {
         "run_dir": "/data/rhasspy",
         "default_profile": "en"
