@@ -1,7 +1,7 @@
 {
     "name": "Rhasspy Assistant",
     "slug": "rhasspy",
-    "version": "1.38",
+    "version": "1.39",
     "description": "Offline voice assistant for Home Assistant",
     "startup": "application",
     "arch": [
