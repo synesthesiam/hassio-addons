@@ -1,10 +1,11 @@
 {
     "name": "Mycroft Precise Wake System for Rhasspy",
     "slug": "precise-rhasspy",
-    "version": "0.2.0-2",
+    "version": "0.2.0-3",
     "description": "Mycroft Precise wake word detection (Mycroft.ai) for Rhasspy voice assistant",
     "startup": "application",
     "boot": "auto",
+    "map": ["share:rw"],
     "options": {
         "host": "localhost",
         "port": 1883,
@@ -13,7 +14,7 @@
         "reconnect": 5,
         "site_id": "default",
         "wakeword_id": "default",
-        "model": "/models/okay-rhasspy.pb",
+        "model": "/share/precise/okay-rhasspy.pb",
         "sensitivity": 0.5,
         "trigger_level": 3
     },
