@@ -1,11 +1,15 @@
 {
     "name": "Snowboy Wake System for Rhasspy",
     "slug": "snowboy-rhasspy",
-    "version": "1.3.0-2",
+    "version": "1.3.0-3",
     "description": "Snowboy wake word detection (Kitt.ai) for Rhasspy voice assistant",
     "startup": "application",
     "boot": "auto",
     "map": ["share:rw"],
+    "arch": [
+        "amd64",
+        "armhf"
+    ],
     "options": {
         "host": "localhost",
         "port": 1883,

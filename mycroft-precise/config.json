@@ -1,11 +1,15 @@
 {
     "name": "Mycroft Precise Wake System for Rhasspy",
     "slug": "precise-rhasspy",
-    "version": "0.2.0-3",
+    "version": "0.2.0-4",
     "description": "Mycroft Precise wake word detection (Mycroft.ai) for Rhasspy voice assistant",
     "startup": "application",
     "boot": "auto",
     "map": ["share:rw"],
+    "arch": [
+        "amd64",
+        "armhf"
+    ],
     "options": {
         "host": "localhost",
         "port": 1883,
