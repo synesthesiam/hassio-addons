@@ -5,7 +5,6 @@ RHASSPY_RUN="${RHASSPY_APP}"
 
 if [[ -f "${CONFIG_PATH}" ]]; then
     RHASSPY_RUN="$(jq --raw-output '.run_dir' ${CONFIG_PATH})"
-    export RHASSPY_PROFILE="$(jq --raw-output '.default_profile' ${CONFIG_PATH})"
 fi
 
 if [[ ! -d "${RHASSPY_RUN}" ]]; then
