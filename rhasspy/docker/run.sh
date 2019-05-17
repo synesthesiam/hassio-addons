@@ -1,19 +1,18 @@
 #!/usr/bin/env bash
 DIR="$( cd "$( dirname "$0" )" && pwd )"
 RHASSPY_APP=/usr/share/rhasspy
-RHASSPY_RUN="${RHASSPY_APP}"
+RHASSPY_USER_DIR=/share/rhasspy
+RHASSPY_PROFILE=en
 
 if [[ -f "${CONFIG_PATH}" ]]; then
-    RHASSPY_RUN="$(jq --raw-output '.run_dir' ${CONFIG_PATH})"
+    RHASSPY_USER_DIR="$(jq --raw-output '.user_dir' ${CONFIG_PATH})"
+    RHASSPY_PROFILE="$(jq --raw-output '.profile' ${CONFIG_PATH})"
 fi
 
-if [[ ! -d "${RHASSPY_RUN}" ]]; then
-    mkdir -p "${RHASSPY_RUN}"
-fi
+mkdir -p "${RHASSPY_USER_DIR}"
 
-export RHASSPY_PROFILES="${RHASSPY_APP}/profiles:${RHASSPY_RUN}/profiles:${RHASSPY_PROFILES}"
-export RHASSPY_ARGS="$@"
-
-export FLASK_APP=app.py
 cd "${RHASSPY_APP}"
-flask run --host=0.0.0.0 --port=12101
+python3 app.py \
+    --user-profiles "${RHASSPY_USER_DIR}" \
+    --profile "${RHASSPY_PROFILE}" \
+    "$@"
