@@ -1,7 +1,7 @@
 {
     "name": "Rhasspy Assistant",
     "slug": "rhasspy",
-    "version": "2.15",
+    "version": "2.16",
     "description": "Offline voice assistant for Home Assistant",
     "startup": "application",
     "arch": [
@@ -13,7 +13,10 @@
     "map": ["share:rw"],
     "options": {
         "user_dir": "/share/rhasspy/profiles",
-        "profile": "en"
+        "profile": "en",
+        "ssl": false,
+        "certfile": "fullchain.pem",
+        "keyfile": "privkey.pem"
     },
     "audio": true,
     "ports": {
@@ -21,7 +24,10 @@
     },
     "schema": {
         "user_dir": "str",
-        "profile": "str"
+        "profile": "str",
+        "ssl": "bool",
+        "certfile": "str",
+        "keyfile": "str"
     },
     "homeassistant_api": true,
     "webui": "http://[HOST]:[PORT:12101]/"
