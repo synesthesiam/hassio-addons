@@ -10,7 +10,7 @@ if [[ -f "${CONFIG_PATH}" ]]; then
 
     asoundrc="$(jq --raw-output '.asoundrc' ${CONFIG_PATH})"
     if [[ ! -z "${asoundrc}" ]]; then
-        cat "${asoundrc}" > /root/.asoundrc
+        echo "${asoundrc}" > /root/.asoundrc
     fi
 fi
 
