@@ -1,7 +1,7 @@
 {
   "name": "Rhasspy Assistant",
   "slug": "rhasspy",
-  "version": "2.4.17.1",
+  "version": "2.4.17.2",
   "description": "Offline voice assistant for Home Assistant",
   "startup": "application",
   "arch": [
@@ -23,7 +23,8 @@
   },
   "audio": true,
   "ports": {
-    "12101/tcp": 12101
+    "12101/tcp": 12101,
+    "12333/udp": 12333
   },
   "schema": {
     "user_dir": "str",
