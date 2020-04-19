@@ -3,6 +3,7 @@
     "slug": "precise-rhasspy",
     "version": "0.2.0-4",
     "description": "Mycroft Precise wake word detection (Mycroft.ai) for Rhasspy voice assistant",
+    "url": "https://github.com/synesthesiam/hassio-addons/tree/master/mycroft-precise",
     "startup": "application",
     "boot": "auto",
     "map": ["share:rw"],
