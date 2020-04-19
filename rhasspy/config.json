@@ -14,8 +14,8 @@
     "share:rw"
   ],
   "options": {
-    "user_dir": "/share/rhasspy/profiles",
-    "profile": "en",
+    "profile_dir": "/share/rhasspy/profiles",
+    "profile_name": "en",
     "ssl": false,
     "certfile": "fullchain.pem",
     "keyfile": "privkey.pem",
@@ -27,8 +27,8 @@
     "12333/udp": 12333
   },
   "schema": {
-    "user_dir": "str",
-    "profile": "str",
+    "profile_dir": "str",
+    "profile_name": "str",
     "ssl": "bool",
     "certfile": "str",
     "keyfile": "str",
