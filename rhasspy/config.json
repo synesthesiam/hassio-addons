@@ -1,7 +1,7 @@
 {
   "name": "Rhasspy Assistant",
   "slug": "rhasspy",
-  "version": "2.4.20.2",
+  "version": "2.4.20.3",
   "description": "Offline voice assistant for Home Assistant",
   "url": "https://github.com/synesthesiam/hassio-addons/tree/master/rhasspy",
   "startup": "application",
@@ -12,14 +12,15 @@
   ],
   "boot": "auto",
   "map": [
-    "share:rw"
+    "share:rw",
+    "ssl"
   ],
   "options": {
     "profile_dir": "/share/rhasspy/profiles",
     "profile_name": "en",
     "ssl": false,
-    "certfile": "fullchain.pem",
-    "keyfile": "privkey.pem",
+    "certfile": "cert",
+    "keyfile": "key",
     "asoundrc": ""
   },
   "audio": true,
