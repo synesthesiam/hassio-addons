@@ -32,10 +32,10 @@
     "profile_dir": "str",
     "profile_name": "str",
     "ssl": "bool",
-    "certfile": "str",
-    "keyfile": "str",
+    "certfile": "match(^[^/].*)",
+    "keyfile": "match(^[^/].*)",
     "asoundrc": "str"
   },
   "homeassistant_api": true,
-  "webui": "http://[HOST]:[PORT:12101]/"
+  "webui": "[PROTO:ssl]://[HOST]:[PORT:12101]/"
 }
