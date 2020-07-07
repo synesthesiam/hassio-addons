@@ -1,4 +1,4 @@
-FROM rhasspy/rhasspy:2.5.0-pre
+FROM rhasspy/rhasspy:latest
 LABEL maintainer="Michael Hansen <hansen.mike@gmail.com>"
 
 ENV LANG C.UTF-8

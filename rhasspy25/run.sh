@@ -16,13 +16,19 @@ if [[ -f "${CONFIG_PATH}" ]]; then
     ssl="$(jq --raw-output '.ssl' "${CONFIG_PATH}")"
     if [[ "${ssl}" == 'true' ]]; then
         certfile="$(jq --raw-output '.certfile' "${CONFIG_PATH}")"
+        if [[ -n "${certfile}" ]]; then
+            RHASSPY_ARGS+=('--certfile' "/ssl/${certfile}")
+        fi
+
         keyfile="$(jq --raw-output '.keyfile' "${CONFIG_PATH}")"
-        RHASSPY_ARGS+=('--ssl' "/ssl/${certfile}" "/ssl/${keyfile}")
+        if [[ -n "${keyfile}" ]]; then
+            RHASSPY_ARGS+=('--keyfile' "/ssl/${keyfile}")
+        fi
     fi
 fi
 
 if [[ -z "${RHASSPY_ARGS[*]}" ]]; then
-    /usr/bin/rhasspy "$@"
+    /usr/lib/rhasspy/bin/rhasspy-voltron "$@"
 else
-    /usr/bin/rhasspy "${RHASSPY_ARGS[@]}" "$@"
+    /usr/lib/rhasspy/bin/rhasspy-voltron "${RHASSPY_ARGS[@]}" "$@"
 fi
