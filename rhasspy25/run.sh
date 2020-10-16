@@ -25,6 +25,12 @@ if [[ -f "${CONFIG_PATH}" ]]; then
             RHASSPY_ARGS+=('--keyfile' "/ssl/${keyfile}")
         fi
     fi
+
+    # Prefix for HTTP UI
+    http_root="$(jq --raw-output '.http_root' "${CONFIG_PATH}")"
+    if [[ ! -z "${http_root}" ]]; then
+        RHASSPY_ARGS+=('--http-root' "${http_root}")
+    fi
 fi
 
 if [[ -z "${RHASSPY_ARGS[*]}" ]]; then
