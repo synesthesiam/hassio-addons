@@ -1,3 +1,40 @@
+## [2.5.7] - 2020 Oct 15
+
+### Added
+
+- Add support for Czech language
+- Add --http-root option to run web server with a different prefix
+
+### Changed
+
+- fuzzywuzzy examples database is deleted before training
+- More graceful handling of missing site ids in dialogue manager
+
+### Fixed
+
+- Use session id instead of site id where possible in dialogue manager
+- Fix silence phones in Vietnamese and profiles
+- Model index bug in rhasspy-wake-snowboy-hermes
+
+## [2.5.6] - 2020 Oct 3
+
+### Added
+
+- Multi-site support for dialogue manager
+- Add "Text FST" language model type for Kaldi for strict grammar-based recognition
+- UDP audio settings in web UI for Pocketsphinx wake word system
+- Rudimentary SSML support in Google Wavenet TTS (digitalfiz)
+
+### Changed
+
+- JSON output from all services is no longer forced to be ASCII
+- fuzzywuzzy performance improvement by using sqlite database (maxbachmann)
+- Lots of documentation improvements (koen)
+- Strip commans from replaced numbers ("one thousand, one hundred")
+- Improve rhasspy-nlu performance (maxbachmann)
+- Simplify Google Wavenet voice selection UI (Romkabouter)
+- Fix local command when not using absolute path (DeadEnd)
+
 ## [2.5.5] - 2020 Jun 30
 
 ### Added
@@ -18,14 +55,6 @@
 - Use GNU autotools for source build (./configure, make, make install)
 - Use pinned versions of profile files on GitHub
 
-## [2.5.0] - 2020 July 07
+## [2.5.0] - 2020 Jun 05
 
-### Added
-
-Official Rhasspy 2.5.0 release
-
-## [2.5] - 2020 June 10
-
-### Added
-
-First version of addon for Rhasspy 2.5 prelease
+First release of Rhasspy 2.5
