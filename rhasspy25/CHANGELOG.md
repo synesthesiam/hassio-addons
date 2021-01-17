@@ -1,6 +1,7 @@
-## [2.5.9] - 2021 Jan 16
+## [2.5.9] - 15 Jan 2021
 
 ### Added
+
 - Add DeepSpeech v0.9 profiles for English, German, French, Spanish, Italian, and Polish (Jaco)
 - Add streaming audio support for DeepSpeech (faster transcription)
 - Settings for energy-based silence detection
@@ -12,11 +13,13 @@
 - _site_id meta slot to Home Assistant intents/events (bk90)
 
 ### Fixed
-- Custom converters for fsticuffs and fuzzywuzzy (thanks @schnopsi)
+
+- Custom converters for fsticuffs and fuzzywuzzy
 - fuzzywuzzy NluException: not enough values to unpack
 - Download links for all profiles
 
 ### Changed
+
 - Upgrade to Mozilla DeepSpeech v0.9
 - Upgrade porcupine wake word system to 1.9
 - Move OpenAPI page from /api/ to /openapi/
@@ -25,6 +28,7 @@
 ## [2.5.8] - 2020 Nov 20
 
 ### Added
+
 - Russian Kaldi profile and Larynx TTS voice
 - Spanish Kaldi profile and Larynx TTS voice
 - French Kaldi profile and Larynx TTS voice
@@ -38,6 +42,7 @@
 - num2words support for Swedish (Bostrom)
 
 ### Fixed
+
 - Argument list for sound output command system (jrouly)
 - Expand environment variables in TLS ca_certs
 - spn silence phone in Swedish profile
@@ -45,6 +50,7 @@
 - HTTP API JSON should not be forced to ASCII
 
 ### Changed
+
 - Default Kaldi language model type is now text FST instead of arpa
 
 ## [2.5.7] - 2020 Oct 15
