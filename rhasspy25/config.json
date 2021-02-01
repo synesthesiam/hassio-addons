@@ -3,7 +3,7 @@
     "slug": "rhasspy",
     "version": "2.5.9",
     "description": "Offline voice assistant for Home Assistant",
-    "url": "https://github.com/synesthesiam/hassio-addons/tree/master/rhasspy",
+    "url": "https://github.com/synesthesiam/hassio-addons/tree/master/rhasspy25",
     "startup": "application",
     "arch": [
         "aarch64",
