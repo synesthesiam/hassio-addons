@@ -1,7 +1,7 @@
 {
     "name": "Rhasspy Assistant",
     "slug": "rhasspy",
-    "version": "2.5.10",
+    "version": "2.5.10.1",
     "description": "Offline voice assistant for Home Assistant",
     "url": "https://github.com/synesthesiam/hassio-addons/tree/master/rhasspy25",
     "startup": "application",
