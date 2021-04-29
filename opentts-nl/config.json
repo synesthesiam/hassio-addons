@@ -1,0 +1,42 @@
+{
+  "name": "OpenTTS nl",
+  "slug": "opentts-nl",
+  "version": "2.0.0",
+  "description": "Uniform access to multiple open source text to speech engines (nl)",
+  "url": "https://github.com/synesthesiam/hassio-addons/opentts-nl",
+  "startup": "application",
+  "arch": [
+    "aarch64",
+    "amd64",
+    "armhf"
+  ],
+  "boot": "auto",
+  "map": [
+    "share:rw"
+  ],
+  "options": {
+    "cache_dir": "",
+    "debug": false,
+    "larynx_quality": "high",
+    "larynx_denoiser_strength": 0.001,
+    "larynx_noise_scale": 0.333,
+    "larynx_length_scale": 1
+  },
+  "audio": true,
+  "ports": {
+    "5500/tcp": 5500
+  },
+  "ports_description": {
+    "5500/tcp": "OpenTTS web UI/API"
+  },
+  "schema": {
+    "cache_dir": "str",
+    "debug": "bool",
+    "larynx_quality": "list(high|medium|low)",
+    "larynx_denoiser_strength": "float",
+    "larynx_noise_scale": "float",
+    "larynx_length_scale": "float"
+  },
+  "homeassistant_api": false,
+  "webui": "http://[HOST]:[PORT:5500]/"
+}
