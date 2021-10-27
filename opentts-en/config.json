@@ -1,7 +1,7 @@
 {
   "name": "OpenTTS en",
   "slug": "opentts-en",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Uniform access to multiple open source text to speech engines (en)",
   "url": "https://github.com/synesthesiam/hassio-addons/opentts-en",
   "startup": "application",
@@ -18,8 +18,8 @@
     "cache_dir": "",
     "debug": false,
     "larynx_quality": "high",
-    "larynx_denoiser_strength": 0.001,
-    "larynx_noise_scale": 0.333,
+    "larynx_denoiser_strength": 0.005,
+    "larynx_noise_scale": 0.667,
     "larynx_length_scale": 1
   },
   "audio": true,

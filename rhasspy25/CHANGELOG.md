@@ -24,8 +24,6 @@
 
 - The rhasspy-silence CLI tool can now split audio by silence and trim silence
 
-
-
 ## [2.5.10] - 2020 Apr 10
 
 ### Added

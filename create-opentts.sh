@@ -3,14 +3,15 @@ set -e
 this_dir="$( cd "$( dirname "$0" )" && pwd )"
 base_dir="${this_dir}/opentts-base"
 
-function set_lang {
+function set_lang_version {
     # lang input output
-    sed -e "s/@LANG@/$1/g" "$2" > "$3"
+    sed -e "s/@LANG@/$1/g" -e "s/@VERSION@/$2/g" "$3" > "$4"
 }
 
-export -f set_lang
+export -f set_lang_version
 
-for lang in de es en fr it nl ru; do
+version='2.1'
+for lang in 'de' 'es' 'en' 'el' 'fi' 'fr' 'hu' 'it' 'ja' 'ko' 'nl' 'ru' 'sv' 'zh'; do
     repo_dir="${this_dir}/opentts-${lang}"
     mkdir -p "${repo_dir}"
 
@@ -22,7 +23,7 @@ for lang in de es en fr it nl ru; do
     # Copy dynamic files
     find "${base_dir}" -name '*.in' -type f -print0 | \
         parallel -0 -n1 \
-                 set_lang "${lang}" {} "${repo_dir}/{/.}"
+                 set_lang_version "${lang}" "${version}" {} "${repo_dir}/{/.}"
 
     # Create icon
     composite \

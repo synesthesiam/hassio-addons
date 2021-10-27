@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-PYTHON=/app/usr/local/bin/python3
+PYTHON=/home/opentts/app/.venv/bin/python3
 
 function jq {
     "${PYTHON}" -c 'import sys; import json; print(json.load(open(sys.argv[2]))[sys.argv[1]])' "$@"
@@ -44,7 +44,7 @@ if [[ -f "${CONFIG_PATH}" ]]; then
     echo "${OPENTTS_ARGS[@]}"
 fi
 
-cd /app
+cd /home/opentts/app
 
 if [[ -z "${OPENTTS_ARGS[*]}" ]]; then
     "${PYTHON}" app.py "$@"
